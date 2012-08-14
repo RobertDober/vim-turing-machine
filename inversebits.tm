@@ -12,5 +12,3 @@ one 1 to_zero 1 L
 
 to_one 0 start 1 R
 to_zero 1 start 0 R
-
-:l
