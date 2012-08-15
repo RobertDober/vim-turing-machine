@@ -1,38 +1,90 @@
 "
 " set the t register such that it runs a TM when invoked as a macro!
+"
+" the TM itself is described as follows
+"
+" * tape -> 1st line (head position is represented by cursor position )
+" * current state -> 2nd line
+" * transitions from 3rd line in the form:
+"      <old_state><space><old_symbol><space><new_state><space><new_symbol><space><direction>
+"      all lines not starting with a state can be used as comments savely
+"
+"  Example:
+"
+"  010100
+"  start
+"  * A bit inverter start it at first column by running @t
+"  start 0 start 1 R
+"  start 1 start 0 R
+"  start   accept * L
 function! s:setTuringMachineRegister()
+  let @t = ''
+  " stores @s and @c
+  call s:setCurrentState()
+  " looks for @s and @c in transition table and halts if not found!
+  call s:findTransition()
+  " changes @s and @c to new values, store L or R into @d
+  call s:recomputeState()
+  " translate L --> h, R --> l
+  call s:transformDirectionIntoMovement()
+  " and now execute the transition and ...
+  call s:executeTransition()
+  " ... merrily loop :-O
+  call s:loop()
+endfunction
+
+function! s:executeTransition()
+  " prepare a temporary writer macro that overwrites the symbol --> @y
+  let @t .= 'or"cp0"yy$dd'
+  " prepare a temporary writer macro that overwrites the state  --> @x
+  let @t .= 'ocw"sp"xy$dd'
+  " go to the state lined and execute @x
+  let @t .= '2G@x'
+  " go back to r/w head and execute @y
+  let @t .= '`h@y'
+endfunction
+
+function! s:findTransition()
+  " As we do not want to use the the expression register we use a temporary macro x
+  " that we prepare at the end of the buffer
+  let @t .= 'Go/"spA "cpA0"xy$dd'
+  let @t .= "3G@x"
+  " Now that we have found the transition (or halted our TM) we just skip over to <new_state>
+  let @t .= "ww"
+endfunction
+
+function! s:loop()
+  let @t .= '@t'
+endfunction
+
+function! s:recomputeState()
+  " We have found a transition and are on <new_state>
+  " we store it into @s and move to <new_symbol>
+  let @t .= '"syww'
+  " same for @c
+  let @t .= '"cyww'
+  " eventually we yank direction into @d
+  let @t .= '"dyw'
+endfunction
+
+function! s:setCurrentState()
   " First we mark the current position, @t will always be invoked with the 
   " current position on the read write head, thus we start by marking it
-  let @t = 'mh'
+  let @t .= 'mh'
   " then we read the current char into the @c register and the current state into 
   " the @s register
   let @t .= '"cxP2G"sy$'
-  " Now we will search for the combination of the two, if they are not found
-  " the macro, and thus the turing machine will halt, otherwise we move to
-  let @t .= '/=@s =@c'
-  " the new state that we will now save in the @s register and the new character
-  let @t .= 'f f l"syew'
-  " that we will save into the @c register
-  let @t .= '"cxPll"dxp'
-  " now we will add LhRl to the end of the line, see it as a lookup table
-  " that will be used to translate L -> h and R -> l
-  let @t .= 'ALhRl'
-  " now we will add the submacro x that will translate and remove the translation
-  " matrix again
-  let @t .= 'F=@dl"dx$xxx'
-  " and store it and delete the line go back to the end of the state transition line
-  let @t .= '0"xy$ddk$'
-  " and execute the macro
-  let @t .= '@x'
-  " Now we update the state
-  let @t .= '2Gc$=@s'
-  " And now the character
-  let @t .= '`hxi=@c'
-  " And finally, after all the trouble to set the @d register up correctly we use
-  " it to move the read write head to the correct position
-  let @t .= '@d'
-  " and tail recurse on ourself 
-  let @t .= '@t'
+endfunction
+
+function! s:transformDirectionIntoMovement()
+  " we will again use the approach from findTransition to create a temporary macro
+  " that will do the transfomrmation, but in addition we will write a temporary
+  " translation table (ttt) LhRl on which @x will operate.
+  let @t .= 'GoLhRl'
+  " now a tmp line for @x, which will find @d backwards in the ttt
+  let @t .= 'oF"dp0"xy$dd'
+  " we deleted the tmp line for @x, thus we are on the ttt line now
+  let @t .= '$@xx"dxdd'
 endfunction
 
 call s:setTuringMachineRegister()
