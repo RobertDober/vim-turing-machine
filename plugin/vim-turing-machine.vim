@@ -11,7 +11,7 @@
 "
 "  Example:
 "
-"  010100
+"  010100 |
 "  start
 "  * A bit inverter start it at first column by running @t
 "  start 0 start 1 R
@@ -37,18 +37,18 @@ function! s:executeTransition()
   " prepare a temporary writer macro that overwrites the symbol --> @y
   let @t .= 'or"cp0"yy$dd'
   " prepare a temporary writer macro that overwrites the state  --> @x
-  let @t .= 'ocw"sp"xy$dd'
+  let @t .= 'ocw"sp0"xy$dd'
   " go to the state lined and execute @x
-  let @t .= '2G@x'
-  " go back to r/w head and execute @y
-  let @t .= '`h@y'
+  let @t .= '2G@x'
+  " go back to r/w head and execute @y and the direction movement
+  let @t .= '`h@y@d'
 endfunction
 
 function! s:findTransition()
-  " As we do not want to use the the expression register we use a temporary macro x
+  " As we do not want to use the the expression register we use a temporary macro f
   " that we prepare at the end of the buffer
-  let @t .= 'Go/"spA "cpA0"xy$dd'
-  let @t .= "3G@x"
+  let @t .= 'Go/^"spA "cpA0"fy$dd'
+  let @t .= "3G@f"
   " Now that we have found the transition (or halted our TM) we just skip over to <new_state>
   let @t .= "ww"
 endfunction
@@ -60,9 +60,9 @@ endfunction
 function! s:recomputeState()
   " We have found a transition and are on <new_state>
   " we store it into @s and move to <new_symbol>
-  let @t .= '"syww'
+  let @t .= '"syew'
   " same for @c
-  let @t .= '"cyww'
+  let @t .= '"cyew'
   " eventually we yank direction into @d
   let @t .= '"dyw'
 endfunction
@@ -81,10 +81,10 @@ function! s:transformDirectionIntoMovement()
   " that will do the transfomrmation, but in addition we will write a temporary
   " translation table (ttt) LhRl on which @x will operate.
   let @t .= 'GoLhRl'
-  " now a tmp line for @x, which will find @d backwards in the ttt
-  let @t .= 'oF"dp0"xy$dd'
-  " we deleted the tmp line for @x, thus we are on the ttt line now
-  let @t .= '$@xx"dxdd'
+  " now a tmp line for @z, which will find @d backwards in the ttt
+  let @t .= 'oF"dp0"zy$dd'
+  " we deleted the tmp line for @z, thus we are on the ttt line now
+  let @t .= '$@zx"dxdd'
 endfunction
 
 call s:setTuringMachineRegister()
